@@ -21,15 +21,16 @@ export default async function PostPage({ params }: { params: { slug: string } })
   const post = await getPost(params.slug);
   if (!post) return notFound();
   return (
-    <article className="container">
+    <article className="container content">
       <h1>{post.title}</h1>
       {post.mainImage?.asset?.url && (
         <div className="hero">
           <img src={post.mainImage.asset.url} alt={post.title} />
         </div>
       )}
-      <PortableText value={post.body} />
+      <div className="prose">
+        <PortableText value={post.body} />
+      </div>
     </article>
   );
 }
-
