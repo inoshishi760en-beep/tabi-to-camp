@@ -1,24 +1,25 @@
 {
   "name": "tabi-to-camp",
-  "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start",
-    "lint": "echo 'ESLint is disabled by spec' && exit 0"
+    "start": "next start -p 3000"
   },
   "dependencies": {
-    "@portabletext/react": "^3.0.19",
-    "next": "^14.2.5",
-    "next-sanity": "^9.3.10",
+    "@portabletext/react": "^3.1.0",
+    "next": "^14.2.0",
+    "next-sanity": "^9.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sanity": "^3.58.0"
+    "sanity": "^3.57.0"
   },
   "devDependencies": {
-    "typescript": "~5.6.3"
-  },
-  "packageManager": "pnpm@10.12.1+sha512.f0dda8580f0ee9481c5c79a1d927b9164f2c478e90992ad268bbb2465a736984391d6333d2c327913578b2804af33474ca554ba29c04a8b13060a717675ae3ac"
+    "@types/node": "^20.12.7",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "typescript": "^5.4.5"
+  }
 }
+
