@@ -1,0 +1,17 @@
+:root { --w: 960px; }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif; line-height: 1.6; margin: 0; color: #111; background: #fff; }
+a { color: inherit; text-decoration: none; }
+.container { max-width: var(--w); margin: 0 auto; padding: 24px; }
+h1 { font-size: 28px; margin: 20px 0; }
+h2 { font-size: 18px; margin: 12px 0 8px; }
+ul { list-style: none; padding: 0; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; transition: box-shadow .15s; }
+.card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+.thumb { aspect-ratio: 16/9; overflow: hidden; border-radius: 6px; background: #f6f6f6; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero { aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; background: #f6f6f6; margin-bottom: 16px; }
+.hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.excerpt { color: #555; font-size: 14px; }
+

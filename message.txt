@@ -1,0 +1,291 @@
+あなたは熟練のフルスタックエンジニアです。
+以下の手順を順番に実施して、最小機能のキャンプ用ブログ（Next.js + Sanity同居）を構築してください。
+MVP以外は一切入れないでください。
+
+0) 前提（必読・直書き設定）
+
+以降のコード中の PROJECT_ID_HERE と DATASET_HERE は、Sanityの実プロジェクトID・データセット名に直接書き換えてください。
+例: PROJECT_ID_HERE = "abc123xy" / DATASET_HERE = "production"
+
+1) プロジェクト作成（依存は最小）
+# 新規プロジェクト作成（App Router, TS, ESLintなし, Tailwindなし）
+pnpm dlx create-next-app@latest camp-min --ts --eslint=false --app --no-src-dir
+cd camp-min
+
+# 依存（最小）
+pnpm add next-sanity @portabletext/react
+
+
+やってはいけないこと
+
+Tailwind／shadcn／next/image／@sanity/image-url／ESLint／Prettier導入 → 禁止
+
+sitemap / OG / robots / 認証 / 検索 / タグ / 多言語 → 一切実装しない
+
+2) 直書き用の設定ファイル（Sanity値の共通定義）
+
+新規作成: sanity/env.ts
+
+// 直書きのデモ用設定（本番では環境変数に移行）
+export const SANITY_PROJECT_ID = 'PROJECT_ID_HERE';
+export const SANITY_DATASET = 'DATASET_HERE';
+export const SANITY_API_VERSION = '2025-11-01';
+
+3) Sanity Studio をNext.jsに同居（/studio）
+
+新規作成: sanity/schemas/post.ts
+
+import { defineField, defineType } from 'sanity';
+
+export default defineType({
+  name: 'post',
+  title: 'Post',
+  type: 'document',
+  fields: [
+    defineField({ name: 'title', type: 'string', validation: r => r.required() }),
+    defineField({
+      name: 'slug',
+      type: 'slug',
+      options: { source: 'title', maxLength: 96 },
+      validation: r => r.required(),
+    }),
+    defineField({ name: 'mainImage', type: 'image', options: { hotspot: true } }),
+    defineField({ name: 'excerpt', type: 'text' }),
+    defineField({ name: 'body', type: 'array', of: [{ type: 'block' }], validation: r => r.required() }),
+  ],
+  preview: { select: { title: 'title' } },
+});
+
+
+新規作成: sanity/sanity.config.ts
+
+import { defineConfig } from 'sanity';
+import { deskTool } from 'sanity/desk';
+import post from './schemas/post';
+import { SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION } from './env';
+
+export default defineConfig({
+  name: 'default',
+  title: 'Camp Blog',
+  projectId: SANITY_PROJECT_ID,
+  dataset: SANITY_DATASET,
+  apiVersion: SANITY_API_VERSION,
+  basePath: '/studio',
+  plugins: [deskTool()],
+  schema: { types: [post] },
+});
+
+
+新規作成: app/studio/[[...index]]/page.tsx
+
+'use client';
+import { NextStudio } from 'next-sanity/studio';
+import config from '@/sanity/sanity.config';
+
+export default function StudioPage() {
+  return <NextStudio config={config} />;
+}
+
+4) Sanityクライアント（公開読み取り・useCdn:true）
+
+新規作成: lib/sanity.client.ts
+
+import { createClient } from 'next-sanity';
+import { SANITY_PROJECT_ID, SANITY_DATASET, SANITY_API_VERSION } from '@/sanity/env';
+
+export const sanityClient = createClient({
+  projectId: SANITY_PROJECT_ID,
+  dataset: SANITY_DATASET,
+  apiVersion: SANITY_API_VERSION,
+  useCdn: true, // 公開読み取りのみ
+});
+
+5) 一覧ページ（/）— 最小表示
+
+新規作成（上書き）: app/page.tsx
+
+export const revalidate = 60;
+
+import Link from 'next/link';
+import { sanityClient } from '@/lib/sanity.client';
+
+type Post = {
+  title: string;
+  slug: { current: string };
+  excerpt?: string;
+  mainImage?: { asset?: { url?: string } };
+  _createdAt: string;
+};
+
+async function getPosts(): Promise<Post[]> {
+  const query = `*[_type=="post" && defined(slug.current)]
+                 | order(_createdAt desc)
+                 {title, slug, excerpt, mainImage{asset->{url}}, _createdAt}`;
+  return sanityClient.fetch(query);
+}
+
+export default async function Page() {
+  const posts = await getPosts();
+  return (
+    <main className="container">
+      <h1>Camp Blog</h1>
+      <ul className="grid">
+        {posts.map((p) => (
+          <li key={p.slug.current} className="card">
+            <Link href={`/posts/${p.slug.current}`}>
+              {p.mainImage?.asset?.url && (
+                <div className="thumb">
+                  <img src={p.mainImage.asset.url} alt={p.title} />
+                </div>
+              )}
+              <h2>{p.title}</h2>
+              {p.excerpt && <p className="excerpt">{p.excerpt}</p>}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+
+6) 詳細ページ（/posts/[slug]）— 最小表示
+
+新規作成: app/posts/[slug]/page.tsx
+
+export const revalidate = 60;
+
+import { sanityClient } from '@/lib/sanity.client';
+import { PortableText } from '@portabletext/react';
+import { notFound } from 'next/navigation';
+
+async function getPost(slug: string) {
+  const query = `*[_type=="post" && slug.current==$slug][0]{
+    title, mainImage{asset->{url}}, body
+  }`;
+  return sanityClient.fetch(query, { slug });
+}
+
+export default async function PostPage({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+  if (!post) return notFound();
+  return (
+    <article className="container">
+      <h1>{post.title}</h1>
+      {post.mainImage?.asset?.url && (
+        <div className="hero">
+          <img src={post.mainImage.asset.url} alt={post.title} />
+        </div>
+      )}
+      <PortableText value={post.body} />
+    </article>
+  );
+}
+
+7) 最小CSS（手書き数十行）
+
+新規作成（上書き）: app/globals.css
+
+:root { --w: 960px; }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif; line-height: 1.6; margin: 0; color: #111; background: #fff; }
+a { color: inherit; text-decoration: none; }
+.container { max-width: var(--w); margin: 0 auto; padding: 24px; }
+h1 { font-size: 28px; margin: 20px 0; }
+h2 { font-size: 18px; margin: 12px 0 8px; }
+ul { list-style: none; padding: 0; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; transition: box-shadow .15s; }
+.card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+.thumb { aspect-ratio: 16/9; overflow: hidden; border-radius: 6px; background: #f6f6f6; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero { aspect-ratio: 16/9; overflow: hidden; border-radius: 8px; background: #f6f6f6; margin-bottom: 16px; }
+.hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.excerpt { color: #555; font-size: 14px; }
+
+8) ルートレイアウトでCSS読込
+
+新規作成（上書き）: app/layout.tsx
+
+import './globals.css';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Camp Blog' };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ja">
+      <body>{children}</body>
+    </html>
+  );
+}
+
+9) パス解決（@/ エイリアス）
+
+追記/新規: tsconfig.json（compilerOptions.paths を追加）
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "plugins": [],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+
+10) 起動・Sanity初期化・テストデータ
+
+起動
+
+pnpm dev
+
+
+http://localhost:3000/studio にアクセスして、SanityのProject ID / Datasetを確認のうえ、
+sanity/env.ts の PROJECT_ID_HERE / DATASET_HERE を実値に書き換えて保存（ホットリロード）。
+
+Studioでpostを2件作成
+
+必須: title, slug, body
+
+任意: mainImage, excerpt
+
+保存後、トップ / に新しい順で表示されること
+
+詳細 /posts/[slug] で本文と画像が表示されること
+
+更新反映の確認
+
+投稿を編集して保存 → 最大60秒で一覧/詳細が更新（ISRのみ／Webhookなし）
+
+11) デプロイ（単一Vercelプロジェクト）
+
+環境変数は使わない前提のため、そのままVercelにimportしてデプロイ
+
+直書きの sanity/env.ts が参照できればOK。追加設定は不要
+
+追加のページ／機能は一切追加しない
+
+12) 完了条件（Definition of Done）
+
+/ 一覧：タイトル・抜粋（任意）・画像（任意）が新しい順に表示
+
+/posts/[slug] 詳細：タイトル・画像（任意）・本文（Portable Text）が表示
+
+/studio で投稿の作成・編集・削除が可能
+
+変更は 最大60秒 で反映（ISRのみ、Webhookなし）
+
+依存は next, react, react-dom, next-sanity, @portabletext/react のみ
